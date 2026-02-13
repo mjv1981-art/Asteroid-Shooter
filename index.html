@@ -3,17 +3,55 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>2D Space Shooter (Procrastination Build)</title>
+  <title>Asteroid Shooter (Procrastination) — V4</title>
   <style>
     html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
     canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+
+    :root {
+      --fg: #fff;
+      --dim: rgba(255,255,255,.65);
+      --red: #ff2a2a;
+      --redDim: rgba(255,42,42,.75);
+    }
+
     .hud {
       position: fixed; left: 14px; top: 12px;
-      color: #fff; font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      opacity: 0.9; user-select: none;
+      color: var(--fg);
+      font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      opacity: 0.92; user-select: none;
       text-shadow: 0 0 10px rgba(255,255,255,.15);
+      pointer-events: none;
     }
-    .hud .dim { opacity: 0.65; }
+    .hud .row { display: flex; align-items: center; gap: 10px; margin: 2px 0; }
+    .hud .label { color: var(--dim); }
+    .hud .pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 2px 8px; border: 1px solid rgba(255,255,255,.22);
+      border-radius: 999px;
+      background: rgba(255,255,255,.05);
+    }
+    .hud .kbd { color: var(--dim); }
+
+    .hud .super {
+      border-color: rgba(255,42,42,.35);
+      background: rgba(255,42,42,.08);
+      box-shadow: 0 0 16px rgba(255,42,42,.08);
+    }
+    .hud .super .label { color: rgba(255,42,42,.85); }
+
+    .icon {
+      width: 16px; height: 16px; display: inline-block;
+      border-radius: 3px;
+      border: 1px solid rgba(255,255,255,.25);
+      background: rgba(255,255,255,.08);
+      box-sizing: border-box;
+    }
+    .icon.red {
+      border-color: rgba(255,42,42,.5);
+      background: rgba(255,42,42,.12);
+    }
+
     .center {
       position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
       color: #fff; text-align: center;
@@ -22,17 +60,133 @@
     }
     .center h1 { margin: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
     .center p { margin: 0; opacity: 0.85; }
+
+    /* Mobile / touch controls */
+    .controls {
+      position: fixed;
+      left: 0; right: 0; bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      padding: 0 14px;
+      gap: 12px;
+      pointer-events: none; /* enable per-button */
+      user-select: none;
+      -webkit-user-select: none;
+      touch-action: none;
+    }
+    .pad {
+      display: flex;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .btn {
+      pointer-events: auto;
+      width: 62px;
+      height: 62px;
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,.22);
+      background: rgba(255,255,255,.06);
+      color: #fff;
+      display: grid;
+      place-items: center;
+      font: 22px/1 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      box-shadow: 0 10px 30px rgba(0,0,0,.35);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn.red {
+      border-color: rgba(255,42,42,.45);
+      background: rgba(255,42,42,.12);
+      box-shadow: 0 10px 30px rgba(255,42,42,.08);
+      color: #ff2a2a;
+      font-weight: 900;
+    }
+    .btn.small {
+      width: 56px; height: 56px;
+      border-radius: 14px;
+      font-size: 16px;
+      color: rgba(255,255,255,.9);
+    }
+    .stack {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 10px;
+      pointer-events: none;
+    }
+    .chip {
+      pointer-events: auto;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.18);
+      background: rgba(0,0,0,.22);
+      color: rgba(255,255,255,.85);
+      font: 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      pointer-events: auto;
+    }
+    .chip b { color: #fff; }
+    .chip .r { color: #ff2a2a; }
+
+    /* Slightly larger controls on very small screens */
+    @media (max-width: 420px) {
+      .btn { width: 66px; height: 66px; }
+    }
   </style>
 </head>
 <body>
   <canvas id="c" tabindex="0" aria-label="Space shooter canvas"></canvas>
+
   <div class="hud">
-    <div><b>Controls</b></div>
-    <div class="dim">← / → rotate</div>
-    <div class="dim">Auto-fire is ON</div>
-    <div class="dim">Enter = restart</div>
+    <div class="row">
+      <span class="pill"><span class="label">Score</span> <b id="hudScore">0</b></span>
+      <span class="pill"><span class="label">Stage</span> <b id="hudStage">1</b></span>
+    </div>
+
+    <div class="row">
+      <span class="pill super" id="fanPill" style="display:none;">
+        <span class="icon red" aria-hidden="true"></span>
+        <span class="label">Fan</span>
+        <b id="hudFan">0</b>
+        <span class="kbd">(Space)</span>
+      </span>
+
+      <span class="pill super" id="spherePill" style="display:none;">
+        <span class="icon red" aria-hidden="true" style="border-radius:999px;"></span>
+        <span class="label">Sphere</span>
+        <b id="hudSphere">0</b>
+        <span class="kbd">(Enter)</span>
+      </span>
+    </div>
+
+    <div class="row" style="margin-top:6px;">
+      <span class="label">Rotate:</span> <span class="kbd">← / →</span>
+      <span class="label">Auto-fire:</span> <span class="kbd">ON</span>
+      <span class="label">Restart:</span> <span class="kbd">Enter (after death)</span>
+    </div>
   </div>
+
   <div id="overlay" class="center" style="display:none;"></div>
+
+  <!-- Touch controls (mobile-friendly) -->
+  <div class="controls" id="controls" aria-hidden="false">
+    <div class="pad">
+      <button class="btn" id="btnLeft" aria-label="Rotate left">⟲</button>
+      <button class="btn" id="btnRight" aria-label="Rotate right">⟳</button>
+    </div>
+
+    <div class="stack">
+      <div class="chip" id="chipHelp"><span>Touch:</span> <span class="r">Fan</span><span>=</span><b>F</b> <span class="r">Sphere</span><span>=</span><b>S</b></div>
+      <div class="pad" style="justify-content:flex-end;">
+        <button class="btn red small" id="btnFan" aria-label="Fire Fan Cannon" style="display:none;">F</button>
+        <button class="btn red small" id="btnSphere" aria-label="Fire Sphere Cannon" style="display:none;">S</button>
+      </div>
+    </div>
+  </div>
 
 <script>
 (() => {
@@ -51,6 +205,21 @@
   window.addEventListener('resize', resize);
   resize();
 
+  // ===== HUD refs =====
+  const hudScore = document.getElementById('hudScore');
+  const hudStage = document.getElementById('hudStage');
+  const hudFan = document.getElementById('hudFan');
+  const hudSphere = document.getElementById('hudSphere');
+  const fanPill = document.getElementById('fanPill');
+  const spherePill = document.getElementById('spherePill');
+
+  // Touch controls
+  const btnLeft = document.getElementById('btnLeft');
+  const btnRight = document.getElementById('btnRight');
+  const btnFan = document.getElementById('btnFan');
+  const btnSphere = document.getElementById('btnSphere');
+  const chipHelp = document.getElementById('chipHelp');
+
   // ===== Helpers =====
   const TAU = Math.PI * 2;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -60,13 +229,28 @@
 
   // A tiny deterministic-ish random seed for asteroid shapes
   function hash(n) {
-    // simple integer hash
     n = (n ^ 61) ^ (n >>> 16);
     n = n + (n << 3);
     n = n ^ (n >>> 4);
     n = n * 0x27d4eb2d;
     n = n ^ (n >>> 15);
     return n >>> 0;
+  }
+
+  function stageFromScore(score) {
+    if (score >= 200) return 3;
+    if (score >= 100) return 2;
+    return 1;
+  }
+
+  function asteroidClassFromRadius(r) {
+    // Tuned for our current spawn range ~[18..72]
+    // small  : < 30  => 5 pts
+    // medium : < 50  => 3 pts
+    // big    : >=50  => 1 pt
+    if (r < 30) return { kind: 'small', pts: 5 };
+    if (r < 50) return { kind: 'medium', pts: 3 };
+    return { kind: 'big', pts: 1 };
   }
 
   // ===== Game state =====
@@ -83,21 +267,27 @@
   focusCanvas();
 
   const normKey = (e) => {
-    // support both modern and older key values
     const k = e.key;
     if (k === 'ArrowLeft' || k === 'Left') return 'ArrowLeft';
     if (k === 'ArrowRight' || k === 'Right') return 'ArrowRight';
     if (k === 'ArrowUp' || k === 'Up') return 'ArrowUp';
     if (k === 'ArrowDown' || k === 'Down') return 'ArrowDown';
+    if (k === ' ') return 'Space';
     return k;
   };
 
   const onKeyDown = (e) => {
     const k = normKey(e);
-    // prevent page scrolling / navigation
-    if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown"," "].includes(k)) e.preventDefault();
+    if (["ArrowLeft","ArrowRight","ArrowUp","ArrowDown","Space","Enter"].includes(k)) e.preventDefault();
+
+    // Fire super weapons on keydown (single press), not while held
+    if (!e.repeat) {
+      if (!state.gameOver && k === 'Space') fireFanCannon();
+      if (!state.gameOver && k === 'Enter') fireSphereCannon();
+      if (state.gameOver && k === 'Enter') reset();
+    }
+
     keys.add(k);
-    if (k === 'Enter' && state.gameOver) reset();
   };
 
   const onKeyUp = (e) => {
@@ -105,37 +295,117 @@
     keys.delete(k);
   };
 
-  // Listen on multiple targets for reliability across environments
   window.addEventListener('keydown', onKeyDown, { passive: false });
   window.addEventListener('keyup', onKeyUp);
   document.addEventListener('keydown', onKeyDown, { passive: false });
   document.addEventListener('keyup', onKeyUp);
   canvas.addEventListener('keydown', onKeyDown, { passive: false });
   canvas.addEventListener('keyup', onKeyUp);
-
-  // If focus is lost (e.g., click elsewhere), arrows may stop working.
-  // Reacquire focus when the window regains it.
   window.addEventListener('focus', focusCanvas);
   document.addEventListener('visibilitychange', () => { if (!document.hidden) focusCanvas(); });
+
+  // ===== Touch input helpers =====
+  const bindHold = (el, keyName) => {
+    const down = (e) => {
+      e.preventDefault();
+      focusCanvas();
+      keys.add(keyName);
+    };
+    const up = (e) => {
+      e.preventDefault();
+      keys.delete(keyName);
+    };
+
+    el.addEventListener('pointerdown', down, { passive: false });
+    window.addEventListener('pointerup', up, { passive: false });
+    window.addEventListener('pointercancel', up, { passive: false });
+    el.addEventListener('pointerleave', up, { passive: false });
+  };
+
+  bindHold(btnLeft, 'ArrowLeft');
+  bindHold(btnRight, 'ArrowRight');
+
+  const bindTap = (el, fn) => {
+    const tap = (e) => {
+      e.preventDefault();
+      focusCanvas();
+      fn();
+    };
+    el.addEventListener('pointerdown', tap, { passive: false });
+  };
+
+  bindTap(btnFan, () => { if (!state.gameOver) fireFanCannon(); });
+  bindTap(btnSphere, () => { if (!state.gameOver) fireSphereCannon(); });
+
+  // Also support a very simple gesture fallback:
+  // drag left/right anywhere = rotate; release = stop.
+  let gestureActive = false;
+  let gestureStartX = 0;
+  let gesturePointerId = null;
+
+  const onGestureDown = (e) => {
+    // If the user touched a button, ignore (buttons already handle it)
+    if (e.target === btnLeft || e.target === btnRight || e.target === btnFan || e.target === btnSphere) return;
+    gestureActive = true;
+    gestureStartX = e.clientX;
+    gesturePointerId = e.pointerId;
+  };
+
+  const onGestureMove = (e) => {
+    if (!gestureActive || e.pointerId !== gesturePointerId) return;
+    const dx = e.clientX - gestureStartX;
+    const dead = 10;
+    keys.delete('ArrowLeft');
+    keys.delete('ArrowRight');
+    if (dx > dead) keys.add('ArrowRight');
+    else if (dx < -dead) keys.add('ArrowLeft');
+  };
+
+  const onGestureUp = (e) => {
+    if (!gestureActive || e.pointerId !== gesturePointerId) return;
+    gestureActive = false;
+    gesturePointerId = null;
+    keys.delete('ArrowLeft');
+    keys.delete('ArrowRight');
+  };
+
+  canvas.addEventListener('pointerdown', onGestureDown, { passive: true });
+  canvas.addEventListener('pointermove', onGestureMove, { passive: true });
+  window.addEventListener('pointerup', onGestureUp, { passive: true });
+  window.addEventListener('pointercancel', onGestureUp, { passive: true });
 
   const state = {
     t: 0,
     last: performance.now(),
     gameOver: false,
-    // ship sits in the center (as requested) - player controls aiming via rotation.
+    score: 0,
+    stage: 1,
+
+    // ship sits in the center - player controls aiming via rotation.
     ship: {
-      x: 0, y: 0,
       angle: -Math.PI / 2,
       angVel: 0,
-      rotAcc: 10.0,       // rad/s^2 - snappy but smooth
+      rotAcc: 10.0,       // rad/s^2
       rotDamp: 10.0,      // higher = more damping
       radius: 16,
       fireRate: 14,       // bullets per second (auto-fire)
       fireTimer: 0,
     },
+
     bullets: [],
     asteroids: [],
     particles: [],
+
+    super: {
+      fanAmmo: 0,
+      sphereAmmo: 0,
+      awarded100: false,
+      awarded140: false,
+      awarded180: false,
+      awarded200: false,
+      infiniteUnlocked: false,
+    },
+
     // difficulty pacing
     spawnTimer: 0,
     spawnEvery: 0.75,
@@ -146,16 +416,32 @@
     state.t = 0;
     state.last = performance.now();
     state.gameOver = false;
+
+    state.score = 0;
+    state.stage = 1;
+
     state.bullets.length = 0;
     state.asteroids.length = 0;
     state.particles.length = 0;
+
     state.spawnTimer = 0;
     state.spawnEvery = 0.75;
     state.maxAsteroids = 14;
+
     state.ship.angle = -Math.PI / 2;
     state.ship.angVel = 0;
     state.ship.fireTimer = 0;
+
+    state.super.fanAmmo = 0;
+    state.super.sphereAmmo = 0;
+    state.super.awarded100 = false;
+    state.super.awarded140 = false;
+    state.super.awarded180 = false;
+    state.super.awarded200 = false;
+    state.super.infiniteUnlocked = false;
+
     overlay.style.display = 'none';
+    syncHud();
   }
 
   function gameOver() {
@@ -168,14 +454,43 @@
     `;
   }
 
+  function syncHud() {
+    hudScore.textContent = String(state.score);
+    hudStage.textContent = String(state.stage);
+
+    const infinite = state.super.infiniteUnlocked;
+
+    // Fan appears starting Stage 2
+    if (state.stage >= 2) {
+      fanPill.style.display = 'inline-flex';
+      hudFan.textContent = infinite ? '∞' : String(state.super.fanAmmo);
+      btnFan.style.display = 'inline-grid';
+    } else {
+      fanPill.style.display = 'none';
+      btnFan.style.display = 'none';
+    }
+
+    // Sphere appears starting Stage 3
+    if (state.stage >= 3) {
+      spherePill.style.display = 'inline-flex';
+      hudSphere.textContent = infinite ? '∞' : String(state.super.sphereAmmo);
+      btnSphere.style.display = 'inline-grid';
+    } else {
+      spherePill.style.display = 'none';
+      btnSphere.style.display = 'none';
+    }
+
+    // If a super is empty, dim the corresponding touch button (unless infinite)
+    btnFan.style.opacity = (state.stage >= 2 && (infinite || state.super.fanAmmo > 0)) ? '1' : '0.35';
+    btnSphere.style.opacity = (state.stage >= 3 && (infinite || state.super.sphereAmmo > 0)) ? '1' : '0.35';
+  }
+
   // ===== Procedural asteroid =====
   function makeAsteroidShape(seed, verts) {
-    // returns array of normalized radius multipliers around circle
     const arr = [];
     let s = seed;
     for (let i = 0; i < verts; i++) {
       s = hash(s + i * 1013904223);
-      // slightly biased to avoid super spiky shapes
       const r = 0.78 + ((s % 1000) / 1000) * 0.44; // ~[0.78..1.22]
       arr.push(r);
     }
@@ -186,7 +501,6 @@
     const w = canvas.width / canvas._dpr;
     const h = canvas.height / canvas._dpr;
 
-    // spawn outside one random edge
     const edge = Math.floor(rand(0, 4));
     let x, y;
     const margin = 60;
@@ -195,14 +509,13 @@
     if (edge === 2) { x = rand(-margin, w + margin); y = h + margin; }
     if (edge === 3) { x = -margin; y = rand(-margin, h + margin); }
 
-    // aim generally across the stage (slightly toward center for tension)
     const cx = w * 0.5;
     const cy = h * 0.5;
     const toCenter = Math.atan2(cy - y, cx - x);
     const dir = toCenter + rand(-0.9, 0.9);
 
-    const size = rand(18, 72); // very varied
-    const speed = rand(55, 165) * (0.9 + (72 / size) * 0.25); // smaller usually a bit faster
+    const size = rand(18, 72);
+    const speed = rand(55, 165) * (0.9 + (72 / size) * 0.25);
 
     const seed = (Math.random() * 1e9) | 0;
     const verts = Math.floor(rand(8, 14));
@@ -218,14 +531,31 @@
       rot: rand(0, TAU),
       rotSpd: rand(-1.2, 1.2),
       seed,
-      alive: true,
       // approximate collision radius
       hitR: size * 0.88,
     });
   }
 
   // ===== Bullets / particles =====
-  function shoot() {
+  function spawnBullet(x, y, angle, speed, opts = {}) {
+    state.bullets.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 0,
+      maxLife: opts.maxLife ?? 1.1,
+      tx: x, ty: y,
+      // rendering
+      color: opts.color ?? '#fff',
+      width: opts.width ?? 1.6,
+      dot: opts.dot ?? 1.7,
+      trailBase: opts.trailBase ?? 18,
+      trailExtra: opts.trailExtra ?? 22,
+      isSuper: !!opts.isSuper,
+    });
+  }
+
+  function shootRegular() {
     const w = canvas.width / canvas._dpr;
     const h = canvas.height / canvas._dpr;
     const s = state.ship;
@@ -233,24 +563,130 @@
     const cy = h * 0.5;
 
     const muzzle = s.radius + 10;
-    const px = cx + Math.cos(s.angle) * muzzle;
-    const py = cy + Math.sin(s.angle) * muzzle;
+    const speed = 620;
 
-    const speed = 620; // fast, crisp
+    if (state.stage < 3) {
+      // Stage 1–2: Single trace
+      const px = cx + Math.cos(s.angle) * muzzle;
+      const py = cy + Math.sin(s.angle) * muzzle;
+      spawnBullet(px, py, s.angle, speed);
+      return;
+    }
 
-    state.bullets.push({
-      x: px, y: py,
-      vx: Math.cos(s.angle) * speed,
-      vy: Math.sin(s.angle) * speed,
-      life: 0,
-      maxLife: 1.1,
-      // trail points
-      tx: px, ty: py,
-    });
+    // Stage 3: Triple trace (+2 from wings)
+    // Center
+    spawnBullet(
+      cx + Math.cos(s.angle) * muzzle,
+      cy + Math.sin(s.angle) * muzzle,
+      s.angle,
+      speed
+    );
+
+    // Wings: same heading, slight lateral offset
+    const wing = 11;
+    const nx = -Math.sin(s.angle);
+    const ny = Math.cos(s.angle);
+
+    spawnBullet(
+      cx + Math.cos(s.angle) * (muzzle - 2) + nx * wing,
+      cy + Math.sin(s.angle) * (muzzle - 2) + ny * wing,
+      s.angle,
+      speed
+    );
+    spawnBullet(
+      cx + Math.cos(s.angle) * (muzzle - 2) - nx * wing,
+      cy + Math.sin(s.angle) * (muzzle - 2) - ny * wing,
+      s.angle,
+      speed
+    );
   }
 
-  function explode(x, y, baseR) {
-    // white-line particle burst
+  function fireFanCannon() {
+    if (state.stage < 2) return;
+    if (!state.super.infiniteUnlocked && state.super.fanAmmo <= 0) return;
+
+    if (!state.super.infiniteUnlocked) state.super.fanAmmo -= 1;
+
+    const w = canvas.width / canvas._dpr;
+    const h = canvas.height / canvas._dpr;
+    const s = state.ship;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+
+    // Visual idea: wing cannons, spread forward like a fan
+    const muzzle = s.radius + 12;
+    const speed = 720;
+    const color = '#ff2a2a';
+
+    const wing = 13;
+    const nx = -Math.sin(s.angle);
+    const ny = Math.cos(s.angle);
+
+    // 7 projectiles in a forward arc
+    const n = 7;
+    const spread = 0.55; // radians total arc
+    for (let i = 0; i < n; i++) {
+      const t = (i / (n - 1)) * 2 - 1; // [-1..1]
+      const a = s.angle + t * (spread / 2);
+
+      // alternate between left/right wing muzzle origins for a nice feel
+      const side = (i % 2 === 0) ? 1 : -1;
+      const ox = nx * wing * side;
+      const oy = ny * wing * side;
+
+      const px = cx + Math.cos(s.angle) * muzzle + ox;
+      const py = cy + Math.sin(s.angle) * muzzle + oy;
+
+      spawnBullet(px, py, a, speed, {
+        color,
+        width: 2.2,
+        dot: 2.0,
+        trailBase: 22,
+        trailExtra: 34,
+        maxLife: 1.0,
+        isSuper: true,
+      });
+    }
+
+    syncHud();
+  }
+
+  function fireSphereCannon() {
+    if (state.stage < 3) return;
+    if (!state.super.infiniteUnlocked && state.super.sphereAmmo <= 0) return;
+
+    if (!state.super.infiniteUnlocked) state.super.sphereAmmo -= 1;
+
+    const w = canvas.width / canvas._dpr;
+    const h = canvas.height / canvas._dpr;
+    const s = state.ship;
+    const cx = w * 0.5;
+    const cy = h * 0.5;
+
+    const speed = 640;
+    const color = '#ff2a2a';
+
+    // 16 projectiles in a full circle
+    const n = 16;
+    for (let i = 0; i < n; i++) {
+      const a = (i / n) * TAU;
+      const px = cx + Math.cos(a) * (s.radius + 8);
+      const py = cy + Math.sin(a) * (s.radius + 8);
+      spawnBullet(px, py, a, speed, {
+        color,
+        width: 2.2,
+        dot: 2.0,
+        trailBase: 18,
+        trailExtra: 30,
+        maxLife: 1.05,
+        isSuper: true,
+      });
+    }
+
+    syncHud();
+  }
+
+  function explode(x, y, baseR, tint = '#fff') {
     const count = Math.floor(clamp(baseR * 0.65, 10, 44));
     for (let i = 0; i < count; i++) {
       const a = rand(0, TAU);
@@ -263,6 +699,7 @@
         life: 0,
         maxLife: rand(0.25, 0.65),
         len,
+        color: tint,
       });
     }
   }
@@ -274,6 +711,26 @@
     return dx * dx + dy * dy;
   }
 
+  function awardSuperAmmo() {
+    // Unlock infinite supers at 300 score
+    if (!state.super.infiniteUnlocked && state.score >= 300) {
+      state.super.infiniteUnlocked = true;
+      state.super.fanAmmo = 9999;
+      state.super.sphereAmmo = 9999;
+    }
+
+    // If infinite already unlocked, skip normal ammo progression
+    if (state.super.infiniteUnlocked) return;
+
+    // Fan cannon charges: +1 at 100, +1 at 140, +1 at 180 (retainable)
+    if (!state.super.awarded100 && state.score >= 100) { state.super.awarded100 = true; state.super.fanAmmo += 1; }
+    if (!state.super.awarded140 && state.score >= 140) { state.super.awarded140 = true; state.super.fanAmmo += 1; }
+    if (!state.super.awarded180 && state.score >= 180) { state.super.awarded180 = true; state.super.fanAmmo += 1; }
+
+    // Sphere cannon charges: +1 at 200
+    if (!state.super.awarded200 && state.score >= 200) { state.super.awarded200 = true; state.super.sphereAmmo += 1; }
+  }
+
   // ===== Update / draw =====
   function update(dt) {
     const w = canvas.width / canvas._dpr;
@@ -281,7 +738,7 @@
 
     state.t += dt;
 
-    // ship rotation physics (smooth: accel + damping)
+    // ship rotation physics
     const s = state.ship;
     const left = keys.has('ArrowLeft');
     const right = keys.has('ArrowRight');
@@ -289,23 +746,20 @@
     if (left) input -= 1;
     if (right) input += 1;
 
-    // integrate angular velocity
     s.angVel += input * s.rotAcc * dt;
-    // exponential-ish damping
     s.angVel *= Math.exp(-s.rotDamp * dt);
     s.angle += s.angVel * dt;
 
-    // auto-fire (constant shooting)
+    // auto-fire regular weapon
     s.fireTimer += dt;
     const interval = 1 / s.fireRate;
     while (!state.gameOver && s.fireTimer >= interval) {
       s.fireTimer -= interval;
-      shoot();
+      shootRegular();
     }
 
     // spawn asteroids with gentle difficulty ramp
     state.spawnTimer += dt;
-    // over time, spawn a bit faster + allow a few more concurrent
     state.spawnEvery = clamp(lerp(0.85, 0.45, Math.min(1, state.t / 70)), 0.42, 0.9);
     state.maxAsteroids = Math.floor(lerp(10, 18, Math.min(1, state.t / 80)));
 
@@ -318,13 +772,11 @@
     for (let i = state.bullets.length - 1; i >= 0; i--) {
       const b = state.bullets[i];
       b.life += dt;
-      // keep a short trail endpoint (previous position)
       b.tx = b.x;
       b.ty = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
-      // remove if out of bounds or expired
       const pad = 80;
       if (b.life > b.maxLife || b.x < -pad || b.x > w + pad || b.y < -pad || b.y > h + pad) {
         state.bullets.splice(i, 1);
@@ -338,7 +790,6 @@
       a.y += a.vy * dt;
       a.rot += a.rotSpd * dt;
 
-      // remove when far out
       const pad = 140;
       if (a.x < -pad || a.x > w + pad || a.y < -pad || a.y > h + pad) {
         state.asteroids.splice(i, 1);
@@ -349,7 +800,6 @@
     for (let i = state.particles.length - 1; i >= 0; i--) {
       const p = state.particles[i];
       p.life += dt;
-      // slightly damp velocity for a nice bloom
       const damp = Math.exp(-3.4 * dt);
       p.vx *= damp;
       p.vy *= damp;
@@ -359,7 +809,6 @@
     }
 
     // collisions: bullets vs asteroids
-    // (brute-force is fine for these counts)
     for (let ai = state.asteroids.length - 1; ai >= 0; ai--) {
       const a = state.asteroids[ai];
       const hr2 = (a.hitR) * (a.hitR);
@@ -367,15 +816,27 @@
       for (let bi = state.bullets.length - 1; bi >= 0; bi--) {
         const b = state.bullets[bi];
         if (dist2(a.x, a.y, b.x, b.y) <= hr2) {
-          // remove bullet
           state.bullets.splice(bi, 1);
           hit = true;
           break;
         }
       }
+
       if (hit) {
-        explode(a.x, a.y, a.r);
+        const cls = asteroidClassFromRadius(a.r);
+        state.score += cls.pts;
+
+        // stage transitions are score-based
+        const newStage = stageFromScore(state.score);
+        if (newStage !== state.stage) {
+          state.stage = newStage;
+        }
+
+        awardSuperAmmo();
+        explode(a.x, a.y, a.r, '#fff');
         state.asteroids.splice(ai, 1);
+
+        syncHud();
       }
     }
 
@@ -384,18 +845,136 @@
       const cx = w * 0.5;
       const cy = h * 0.5;
       const shipR = state.ship.radius;
-      const shipR2 = shipR * shipR;
 
       for (let ai = 0; ai < state.asteroids.length; ai++) {
         const a = state.asteroids[ai];
         const rr = (a.hitR + shipR * 0.85);
         if (dist2(cx, cy, a.x, a.y) <= rr * rr) {
-          explode(cx, cy, 55);
+          explode(cx, cy, 55, '#fff');
           gameOver();
           break;
         }
       }
     }
+  }
+
+  function drawShip(stage) {
+    // ship is drawn around origin, facing +X (we rotate canvas to angle)
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+
+    if (stage === 1) {
+      // Simple dart
+      ctx.beginPath();
+      ctx.moveTo(20, 0);
+      ctx.lineTo(-14, -12);
+      ctx.lineTo(-6, 0);
+      ctx.lineTo(-14, 12);
+      ctx.closePath();
+      ctx.stroke();
+      return;
+    }
+
+    if (stage === 2) {
+      // Jet fighter silhouette (F-16-ish vibe, still simple line art)
+      // fuselage + nose
+      ctx.beginPath();
+      ctx.moveTo(24, 0);        // nose
+      ctx.lineTo(10, -4);
+      ctx.lineTo(-6, -6);
+      ctx.lineTo(-18, -2);
+      ctx.lineTo(-24, 0);       // tail center
+      ctx.lineTo(-18, 2);
+      ctx.lineTo(-6, 6);
+      ctx.lineTo(10, 4);
+      ctx.closePath();
+      ctx.stroke();
+
+      // main wings (swept)
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(4, -4);
+      ctx.lineTo(-6, -18);
+      ctx.lineTo(-2, -4);
+      ctx.moveTo(4, 4);
+      ctx.lineTo(-6, 18);
+      ctx.lineTo(-2, 4);
+      ctx.stroke();
+
+      // tail fins
+      ctx.globalAlpha = 0.65;
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(-16, -1);
+      ctx.lineTo(-22, -10);
+      ctx.moveTo(-16, 1);
+      ctx.lineTo(-22, 10);
+      ctx.stroke();
+
+      // cockpit line
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(12, 0);
+      ctx.lineTo(4, 0);
+      ctx.stroke();
+
+      ctx.globalAlpha = 1;
+      ctx.lineWidth = 2;
+      return;
+    }
+
+    // stage 3: X-wing-inspired silhouette (iconic "X" wings + nacelle hints)
+    // central fuselage
+    ctx.beginPath();
+    ctx.moveTo(24, 0);       // nose
+    ctx.lineTo(12, -3);
+    ctx.lineTo(-10, -3);
+    ctx.lineTo(-22, 0);      // rear
+    ctx.lineTo(-10, 3);
+    ctx.lineTo(12, 3);
+    ctx.closePath();
+    ctx.stroke();
+
+    // S-foils (four wings forming an X)
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    // upper pair
+    ctx.moveTo(6, -4);
+    ctx.lineTo(-14, -18);
+    ctx.moveTo(6, -4);
+    ctx.lineTo(-14, 18);
+    // lower pair
+    ctx.moveTo(6, 4);
+    ctx.lineTo(-14, -18);
+    ctx.moveTo(6, 4);
+    ctx.lineTo(-14, 18);
+    ctx.stroke();
+
+    // engine/nacelle hints near wing tips
+    ctx.globalAlpha = 0.75;
+    ctx.lineWidth = 1.2;
+    const nac = (x, y) => {
+      ctx.beginPath();
+      ctx.moveTo(x - 2, y - 2);
+      ctx.lineTo(x + 4, y - 2);
+      ctx.lineTo(x + 4, y + 2);
+      ctx.lineTo(x - 2, y + 2);
+      ctx.closePath();
+      ctx.stroke();
+    };
+    nac(-14, -18);
+    nac(-14, 18);
+
+    // cockpit line
+    ctx.globalAlpha = 0.55;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.moveTo(13, 0);
+    ctx.lineTo(5, 0);
+    ctx.stroke();
+
+    ctx.globalAlpha = 1;
+    ctx.lineWidth = 2;
   }
 
   function draw() {
@@ -409,24 +988,47 @@
     ctx.fillStyle = '#000';
     ctx.fillRect(0, 0, w, h);
 
-    // subtle star dust
-    // (cheap, deterministic-ish, no state)
-    const starCount = Math.floor((w * h) / 30000);
-    ctx.globalAlpha = 0.35;
-    ctx.fillStyle = '#fff';
-    for (let i = 0; i < starCount; i++) {
-      const x = (Math.sin(i * 999 + 1.23) * 0.5 + 0.5) * w;
-      const y = (Math.sin(i * 2222 + 4.56) * 0.5 + 0.5) * h;
-      const s = (Math.sin(i * 7777 + 0.1) * 0.5 + 0.5) * 1.2 + 0.2;
-      ctx.fillRect(x, y, s, s);
-    }
+    // ===== Cinematic starfield background =====
+    // Deep space gradient
+    const g = ctx.createRadialGradient(w*0.5, h*0.5, 0, w*0.5, h*0.5, Math.max(w,h)*0.7);
+    g.addColorStop(0, '#05070d');
+    g.addColorStop(0.6, '#020309');
+    g.addColorStop(1, '#000000');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+
+    // Star layers (parallax illusion via slight vertical drift over time)
+    const t = state.t;
+
+    const drawStars = (count, sizeMin, sizeMax, alpha, speedFactor) => {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#ffffff';
+      for (let i = 0; i < count; i++) {
+        // deterministic pseudo positions
+        const sx = (Math.sin(i * 127.1) * 0.5 + 0.5) * w;
+        const baseY = (Math.sin(i * 311.7) * 0.5 + 0.5) * h;
+        const sy = (baseY + t * speedFactor) % h;
+
+        const twinkle = 0.5 + 0.5 * Math.sin(t * 2 + i);
+        const size = sizeMin + (sizeMax - sizeMin) * twinkle;
+
+        ctx.fillRect(sx, sy, size, size);
+      }
+    };
+
+    // Far faint stars
+    drawStars(Math.floor((w*h)/45000), 0.5, 1.2, 0.35, 4);
+    // Mid layer
+    drawStars(Math.floor((w*h)/65000), 0.8, 1.6, 0.55, 8);
+    // Near bright stars
+    drawStars(Math.floor((w*h)/120000), 1.2, 2.4, 0.9, 14);
+
     ctx.globalAlpha = 1;
 
     // bullets (with traces)
-    ctx.strokeStyle = '#fff';
     for (const b of state.bullets) {
       const t = b.life / b.maxLife;
-      const trail = 18 + 22 * (1 - t);
+      const trail = b.trailBase + b.trailExtra * (1 - t);
       const dx = b.x - b.tx;
       const dy = b.y - b.ty;
       const mag = Math.hypot(dx, dy) || 1;
@@ -434,17 +1036,17 @@
       const uy = dy / mag;
 
       ctx.globalAlpha = 0.95;
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = b.width;
+      ctx.strokeStyle = b.color;
       ctx.beginPath();
       ctx.moveTo(b.x - ux * trail, b.y - uy * trail);
       ctx.lineTo(b.x, b.y);
       ctx.stroke();
 
-      // tip dot
       ctx.globalAlpha = 1;
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = b.color;
       ctx.beginPath();
-      ctx.arc(b.x, b.y, 1.7, 0, TAU);
+      ctx.arc(b.x, b.y, b.dot, 0, TAU);
       ctx.fill();
     }
     ctx.globalAlpha = 1;
@@ -461,7 +1063,7 @@
       ctx.beginPath();
       ctx.moveTo(x2, y2);
       ctx.lineTo(p.x, p.y);
-      ctx.strokeStyle = '#fff';
+      ctx.strokeStyle = p.color || '#fff';
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -485,7 +1087,6 @@
       ctx.closePath();
       ctx.stroke();
 
-      // tiny inner detail line
       ctx.globalAlpha = 0.25;
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -493,36 +1094,26 @@
       ctx.lineTo(a.r * 0.15, a.r * 0.22);
       ctx.stroke();
       ctx.globalAlpha = 1;
-
       ctx.restore();
     }
 
     // ship (center)
     const cx = w * 0.5;
     const cy = h * 0.5;
-    const s = state.ship;
 
     ctx.save();
     ctx.translate(cx, cy);
-    ctx.rotate(s.angle);
+    ctx.rotate(state.ship.angle);
 
-    // ship body - simple triangle with a notch
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(20, 0);
-    ctx.lineTo(-14, -12);
-    ctx.lineTo(-6, 0);
-    ctx.lineTo(-14, 12);
-    ctx.closePath();
-    ctx.stroke();
+    drawShip(state.stage);
 
     // faint engine line
     ctx.globalAlpha = 0.35;
     ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(-14, 0);
-    ctx.lineTo(-26, 0);
+    ctx.moveTo(-18, 0);
+    ctx.lineTo(-30, 0);
+    ctx.strokeStyle = '#fff';
     ctx.stroke();
     ctx.globalAlpha = 1;
 
@@ -538,13 +1129,12 @@
   }
 
   function tick(now) {
-    const dt = clamp((now - state.last) / 1000, 0, 0.033); // cap for stability
+    const dt = clamp((now - state.last) / 1000, 0, 0.033);
     state.last = now;
 
     if (!state.gameOver) update(dt);
     else {
       // still update particles for a pleasant finish
-      // (no ship/bullets/asteroids updates)
       for (let i = state.particles.length - 1; i >= 0; i--) {
         const p = state.particles[i];
         p.life += dt;

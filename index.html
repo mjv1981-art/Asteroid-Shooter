@@ -1,9 +1,26 @@
 <!doctype html>
 <html lang="en">
 <head>
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-07B5TZW10M"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-07B5TZW10M');
+</script><!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-07B5TZW10M"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-07B5TZW10M');
+</script>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Asteroid Shooter (Procrastination) — V4</title>
+  <title>2D Space Shooter (Procrastination Build) — V2</title>
   <style>
     html, body { height: 100%; margin: 0; background: #000; overflow: hidden; }
     canvas { display: block; width: 100vw; height: 100vh; outline: none; }
@@ -13,53 +30,205 @@
       --dim: rgba(255,255,255,.65);
       --red: #ff2a2a;
       --redDim: rgba(255,42,42,.75);
+
+      /* ZX-ish palette for border stripes */
+      --zx0: #000000;
+      --zx1: #0000d7; /* blue */
+      --zx2: #d70000; /* red */
+      --zx3: #d7d700; /* yellow */
+      --zx4: #00d700; /* green */
+      --zx5: #00d7d7; /* cyan */
+      --zx6: #d700d7; /* magenta */
+      --zx7: #d7d7d7; /* white-ish */
     }
 
-    .hud {
-      position: fixed; left: 14px; top: 12px;
-      color: var(--fg);
-      font: 14px/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      opacity: 0.92; user-select: none;
-      text-shadow: 0 0 10px rgba(255,255,255,.15);
-      pointer-events: none;
-    }
-    .hud .row { display: flex; align-items: center; gap: 10px; margin: 2px 0; }
-    .hud .label { color: var(--dim); }
-    .hud .pill {
-      display: inline-flex; align-items: center; gap: 6px;
-      padding: 2px 8px; border: 1px solid rgba(255,255,255,.22);
-      border-radius: 999px;
-      background: rgba(255,255,255,.05);
-    }
-    .hud .kbd { color: var(--dim); }
+    /* ===== Retro splash with ZX border stripes ===== */
+    #splash-screen {
+      position: fixed;
+      inset: 0;
+      z-index: 2000;
+      cursor: pointer;
+      display: grid;
+      place-items: center;
 
-    .hud .super {
-      border-color: rgba(255,42,42,.35);
-      background: rgba(255,42,42,.08);
-      box-shadow: 0 0 16px rgba(255,42,42,.08);
-    }
-    .hud .super .label { color: rgba(255,42,42,.85); }
+      /* big Spectrum-like border area */
+      padding: clamp(42px, 10vmin, 140px);
 
-    .icon {
-      width: 16px; height: 16px; display: inline-block;
-      border-radius: 3px;
-      border: 1px solid rgba(255,255,255,.25);
-      background: rgba(255,255,255,.08);
+      /* striped border (tape-loader vibe) */
+      background:
+        repeating-linear-gradient(
+          0deg,
+          var(--zx2) 0px, var(--zx2) 6px,
+          var(--zx3) 6px, var(--zx3) 12px,
+          var(--zx4) 12px, var(--zx4) 18px,
+          var(--zx5) 18px, var(--zx5) 24px,
+          var(--zx1) 24px, var(--zx1) 30px,
+          var(--zx6) 30px, var(--zx6) 36px,
+          var(--zx7) 36px, var(--zx7) 42px,
+          var(--zx0) 42px, var(--zx0) 50px
+        );
+      background-size: 100% 120px;
+      animation: zxBorder 0.22s linear infinite;
       box-sizing: border-box;
     }
-    .icon.red {
-      border-color: rgba(255,42,42,.5);
-      background: rgba(255,42,42,.12);
+
+    @keyframes zxBorder {
+      0% { background-position: 0 0; }
+      100% { background-position: 0 120px; }
+    }
+
+    /* inner "screen" */
+    .splash-inner {
+      width: min(860px, 100%);
+      aspect-ratio: 4 / 3;
+      background: #000;
+      border: 1px solid rgba(255,255,255,.25);
+      box-shadow: 0 0 60px rgba(0,0,0,.55);
+
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      gap: 18px;
+
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    .brand {
+      font-size: clamp(26px, 5vw, 56px);
+      font-weight: 900;
+      color: #ff0;
+      text-shadow: 2px 2px 0 #f0f, 4px 4px 0 #0ff;
+      letter-spacing: 6px;
+      animation: flicker 2s infinite;
+      user-select: none;
+    }
+
+    @keyframes flicker {
+      0% { opacity: 1; }
+      50% { opacity: 0.82; }
+      100% { opacity: 1; }
+    }
+
+    .loader-text {
+      font-size: clamp(16px, 3.6vw, 34px);
+      color: #0f0;
+      border-right: 2px solid #0f0;
+      white-space: nowrap;
+      overflow: hidden;
+      padding-right: 6px;
+      animation: blink-cursor 1s step-end infinite;
+      user-select: none;
+    }
+
+    @keyframes blink-cursor {
+      from, to { border-color: transparent; }
+      50% { border-color: #0f0; }
+    }
+
+    .tape-bars {
+      width: min(720px, 86%);
+      height: 32px;
+      background: repeating-linear-gradient(
+        90deg,
+        #0f0 0px,
+        #0f0 10px,
+        #000 10px,
+        #000 20px
+      );
+      background-size: 200% 100%;
+      animation: move-bars 0.5s linear infinite;
+      opacity: 0.75;
+      border: 1px solid rgba(0,255,0,.35);
+      box-shadow: 0 0 18px rgba(0,255,0,.15);
+    }
+
+    @keyframes move-bars {
+      0% { background-position: 0% 0%; }
+      100% { background-position: 200% 0%; }
+    }
+
+    .click-hint {
+      margin-top: 10px;
+      font-size: clamp(12px, 2.6vw, 22px);
+      color: rgba(255,255,255,.35);
+      animation: pulse 1.5s infinite;
+      user-select: none;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.25; }
+      50% { opacity: 1; }
+      100% { opacity: 0.25; }
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      #splash-screen { animation: none; }
+      .tape-bars { animation: none; }
+      .brand { animation: none; }
+      .loader-text { animation: none; }
+      .click-hint { animation: none; }
+    }
+
+    /* ===== HUD (top bar) ===== */
+    .hud {
+      position: fixed;
+      top: 12px;
+      left: 14px;
+      right: 14px;
+      z-index: 1200;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 13px;
+      color: rgba(255,255,255,.85);
+      pointer-events: none;
+    }
+
+    .hud .row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      border-radius: 14px;
+      background: rgba(0,0,0,.35);
+      border: 1px solid rgba(255,255,255,.18);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+    }
+
+    .pill.super .icon {
+      width: 10px;
+      height: 10px;
+      border: 1px solid currentColor;
+      display: inline-block;
+    }
+
+    .label { opacity: .7; }
+    .kbd {
+      font-size: 11px;
+      opacity: .6;
     }
 
     .center {
-      position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%);
-      color: #fff; text-align: center;
-      font: 16px/1.45 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      user-select: none;
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      color: #fff;
+      font-family: ui-monospace, monospace;
+      z-index: 1300;
     }
-    .center h1 { margin: 0 0 8px; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
-    .center p { margin: 0; opacity: 0.85; }
 
     /* Mobile / touch controls */
     .controls {
@@ -139,6 +308,16 @@
   </style>
 </head>
 <body>
+  <!-- Retro Waves / ZX tape loader splash -->
+  <div id="splash-screen" role="button" aria-label="Retro Waves splash. Tap to start." tabindex="0">
+    <div class="splash-inner">
+      <div class="brand">RETRO WAVE</div>
+      <div class="loader-text" id="loading-text">LOADING...</div>
+      <div class="tape-bars"></div>
+      <div class="click-hint">> TAP / CLICK TO START TAPE <</div>
+    </div>
+  </div>
+
   <canvas id="c" tabindex="0" aria-label="Space shooter canvas"></canvas>
 
   <div class="hud">
@@ -190,6 +369,88 @@
 
 <script>
 (() => {
+  // ===== Retro splash logic (ZX tape loader) =====
+  const splash = document.getElementById('splash-screen');
+  const loadingText = document.getElementById('loading-text');
+
+  let gameStarted = false;
+
+  function playTapeSound() {
+    // short synthesized tape noise/tones (no external assets)
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContext();
+    // Volume control (~19% loudness)
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0.19;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const duration = 3.6;
+    const sampleRate = audioCtx.sampleRate;
+    const buffer = audioCtx.createBuffer(1, sampleRate * duration, sampleRate);
+    const data = buffer.getChannelData(0);
+
+    for (let i = 0; i < buffer.length; i++) {
+      const t = i / sampleRate;
+      let sample = 0;
+
+      if (t < 0.5) {
+        sample = Math.random() * 0.28 - 0.14;
+      } else if (t < 1.5) {
+        sample = Math.sin(2 * Math.PI * 2000 * t) * 0.35 + (Math.random() * 0.1 - 0.05);
+      } else if (t < 2.6) {
+        const freq = (Math.sin(2 * Math.PI * 18 * t) > 0) ? 1500 : 2500;
+        sample = Math.sin(2 * Math.PI * freq * t) * 0.36 + (Math.random() * 0.18 - 0.09);
+      } else {
+        const decay = 1 - (t - 2.6) / 1.0;
+        sample = Math.sin(2 * Math.PI * 1600 * t) * 0.22 * decay;
+      }
+
+      sample += (Math.random() * 0.08 - 0.04) * (1 - t / duration);
+      data[i] = Math.max(-1, Math.min(1, sample));
+    }
+
+    const source = audioCtx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+    gain.connect(audioCtx.destination);
+    source.start();
+
+    source.onended = () => {
+      try { audioCtx.close(); } catch {}
+    };
+  }
+
+  function startSplashSequence() {
+    if (gameStarted) return;
+    gameStarted = true;
+
+    loadingText.textContent = '> TAPE LOADING... <';
+    playTapeSound();
+
+    let dots = 0;
+    const interval = setInterval(() => {
+      dots = (dots + 1) % 4;
+      loadingText.textContent = '> TAPE LOADING' + '.'.repeat(dots) + ' <';
+    }, 300);
+
+    setTimeout(() => {
+      clearInterval(interval);
+      splash.style.display = 'none';
+      // kick off the game loop
+      startGame();
+    }, 3600);
+  }
+
+  // Start on click/tap/enter
+  splash.addEventListener('click', startSplashSequence);
+  splash.addEventListener('pointerdown', (e) => { e.preventDefault(); startSplashSequence(); }, { passive: false });
+  splash.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      startSplashSequence();
+    }
+  });
+
   // ===== Canvas setup =====
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -1151,8 +1412,14 @@
     requestAnimationFrame(tick);
   }
 
-  reset();
-  requestAnimationFrame((t) => { state.last = t; requestAnimationFrame(tick); });
+  // NOTE: Game now starts after the splash screen.
+  function startGame() {
+    reset();
+    requestAnimationFrame((t) => { state.last = t; requestAnimationFrame(tick); });
+  }
+
+  // If someone disables the splash via devtools, allow game start.
+  // (We don't auto-start here so the branding screen always shows first.)
 })();
 </script>
 </body>
